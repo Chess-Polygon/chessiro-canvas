@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import type {
-  Pieces, Square, Orientation, Arrow, ArrowBrushes, PieceColor,
+  Piece, Pieces, Square, Orientation, Arrow, ArrowBrushes, PieceColor,
   PromotionPiece, PromotionContext, Dests, PremoveConfig,
 } from '../types';
 import { DEFAULT_ARROW_BRUSHES } from '../types';
@@ -369,6 +369,28 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
     premovable?.events?.unset?.();
   }, [premoveCurrent, premovable]);
 
+  const showPieceDestinations = useCallback((sq: string, piece: Piece): boolean => {
+    if (canMoveColor(piece.color)) {
+      const targets = getDestsForSquare(sq);
+      if (targets.length > 0 || !dests) {
+        setSelectedSquare(sq);
+        setLegalSquares(prev => (sameSquares(prev, targets) ? prev : targets));
+        setPremoveSquares(prev => (prev.length === 0 ? prev : EMPTY_SQUARES));
+        return true;
+      }
+    }
+    if (canPremoveColor(piece.color)) {
+      const pmTargets = premoveDests(sq as Square, piecesRef.current, piece.color);
+      if (pmTargets.length > 0) {
+        setSelectedSquare(sq);
+        setLegalSquares(prev => (prev.length === 0 ? prev : EMPTY_SQUARES));
+        setPremoveSquares(prev => (sameSquares(prev, pmTargets) ? prev : pmTargets));
+        return true;
+      }
+    }
+    return false;
+  }, [canMoveColor, canPremoveColor, getDestsForSquare, dests]);
+
   const clearSelection = useCallback(() => {
     resetSelection();
     cancelQueuedPremove();
@@ -466,36 +488,10 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
 
     // Clicking a piece
     const piece = piecesRef.current.get(sq as Square);
-    if (piece) {
-      // Can move this piece normally
-      if (canMoveColor(piece.color)) {
-        const targets = getDestsForSquare(sq);
-        if (targets.length > 0 || !dests) {
-          setSelectedSquare(sq);
-          setLegalSquares(targets);
-          setPremoveSquares([]);
-          onSquareClick?.(sq);
-          return;
-        }
-      }
-      // Can premove this piece
-      if (canPremoveColor(piece.color)) {
-        const pmTargets = premoveDests(sq as Square, piecesRef.current, piece.color);
-        if (pmTargets.length > 0) {
-          setSelectedSquare(sq);
-          setLegalSquares([]);
-          setPremoveSquares(pmTargets);
-          onSquareClick?.(sq);
-          return;
-        }
-      }
-    }
-
-    resetSelection();
+    if (!piece || !showPieceDestinations(sq, piece)) resetSelection();
     onSquareClick?.(sq);
-  }, [interactive, attemptMove, attemptPremove, getDestsForSquare, dests,
-    canMoveColor, canPremoveColor, cancelQueuedPremove, resetSelection,
-    onSquareClick, clearOverlaysForPly]);
+  }, [interactive, attemptMove, attemptPremove, showPieceDestinations,
+    cancelQueuedPremove, resetSelection, onSquareClick, clearOverlaysForPly]);
 
   // ── Toggle arrow/mark helpers ──
 
@@ -623,6 +619,17 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
     const pos = getClientPos(nativeEvent);
     if (!pos) return;
 
+    // A press that may still become a move or a toggle waits for the release.
+    const applySelectionOnPress = (square: Square, pressedPiece: Piece): boolean => {
+      if (justDrewArrowRef.current) return false;
+      const selected = selectedRef.current;
+      if (selected === square) return false;
+      if (selected && (legalRef.current.includes(square) || premoveRef.current.includes(square))) return false;
+      cancelQueuedPremove();
+      if (!showPieceDestinations(square, pressedPiece)) resetSelection();
+      return true;
+    };
+
     // Initiate drag if there's a piece and dragging is allowed
     let startedDragCandidate = false;
     if (piece && interactive && allowDragging) {
@@ -630,13 +637,15 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
       const canPremove = canPremoveColor(piece.color);
       if (canMove || canPremove) {
         dragKeyChangedRef.current = false;
-        const newDrag = {
+        const selectionAppliedOnPress = applySelectionOnPress(sq, piece);
+        const newDrag: DragState = {
           origSquare: sq,
           piece,
           startPos: pos,
           currentPos: pos,
           started: false,
           isTouch,
+          selectionAppliedOnPress,
         };
         dragRef.current = newDrag;
         setDrag(newDrag);
@@ -654,7 +663,8 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
       handleSquareInteraction(sq);
     }
   }, [getCurrentBounds, pendingPromotion, asWhite, interactive, allowDragging, allowDrawingArrows,
-    handleSquareInteraction, brushes, canMoveColor, canPremoveColor, blockTouchScroll, attachDocListeners]);
+    handleSquareInteraction, brushes, canMoveColor, canPremoveColor, blockTouchScroll, attachDocListeners,
+    cancelQueuedPremove, resetSelection, showPieceDestinations]);
 
   // ── Document-level move/up for drag and arrow drawing ──
 
@@ -726,30 +736,12 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
       }
       if (dragStartedSquare) {
         const piece = piecesRef.current.get(dragStartedSquare as Square);
-        if (!piece) return;
-
-        if (canMoveColor(piece.color)) {
-          const targets = getDestsForSquare(dragStartedSquare);
-          if (targets.length > 0 || !dests) {
-            setSelectedSquare(prev => (prev === dragStartedSquare ? prev : dragStartedSquare));
-            setLegalSquares(prev => (sameSquares(prev, targets) ? prev : targets));
-            setPremoveSquares(prev => (prev.length === 0 ? prev : EMPTY_SQUARES));
-            return;
-          }
-        }
-
-        if (canPremoveColor(piece.color)) {
-          const pmTargets = premoveDests(dragStartedSquare as Square, piecesRef.current, piece.color);
-          if (pmTargets.length > 0) {
-            setSelectedSquare(prev => (prev === dragStartedSquare ? prev : dragStartedSquare));
-            setLegalSquares(prev => (prev.length === 0 ? prev : EMPTY_SQUARES));
-            setPremoveSquares(prev => (sameSquares(prev, pmTargets) ? prev : pmTargets));
-          }
-        }
+        if (piece) showPieceDestinations(dragStartedSquare, piece);
       }
     };
 
     const handleUp = (e: MouseEvent | TouchEvent) => {
+      if ('touches' in e) lastTouchTsRef.current = Date.now();
       const releaseBounds = activeBoundsRef.current ?? getCurrentBounds();
       // Arrow drawing end
       if ('button' in e && isRightButton(e as MouseEvent) && arrowStartRef.current && releaseBounds) {
@@ -798,7 +790,12 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
       setDragHoverSquare(null);
 
       if (capturedDrag && !capturedDrag.started) {
-        handleSquareInteraction(capturedDrag.origSquare);
+        if (capturedDrag.selectionAppliedOnPress) {
+          if (interactive) clearOverlaysForPly();
+          onSquareClick?.(capturedDrag.origSquare);
+        } else {
+          handleSquareInteraction(capturedDrag.origSquare);
+        }
         return;
       }
 
@@ -856,7 +853,8 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
     docUpHandlerRef.current = handleUp;
   }, [getCurrentBounds, asWhite, interactive, attemptMove, attemptPremove,
     toggleArrow, toggleMark, getSnappedSquare, snapArrowsToValidMoves,
-    canMoveColor, canPremoveColor, blockTouchScroll, getDestsForSquare, dests, handleSquareInteraction,
+    canMoveColor, canPremoveColor, blockTouchScroll, handleSquareInteraction,
+    clearOverlaysForPly, onSquareClick, showPieceDestinations,
     dropHintRef, onDropRejected]);
 
   // Detach any active gesture listeners on unmount.

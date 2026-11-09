@@ -19,6 +19,6 @@ export const PieceGlyph = memo(function PieceGlyph({
   if (customPieces?.[pieceKey]) {
     return customPieces[pieceKey]();
   }
-  const src = resolvePieceImageSrc(pieceKey, pieceSet?.path);
+  const src = resolvePieceImageSrc(pieceKey, pieceSet);
   return <CachedPieceImg src={src} alt={pieceKey} />;
 });

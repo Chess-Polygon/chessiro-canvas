@@ -1,5 +1,7 @@
 import { useEffect, useState, memo } from 'react';
 import type { ReactNode } from 'react';
+import { resolvePieceSetUrls } from '../defaultPieces';
+import type { PieceSet } from '../types';
 
 const blobCache = new Map<string, string>();
 const loadPromises = new Map<string, Promise<string>>();
@@ -40,11 +42,9 @@ async function loadAndCache(src: string): Promise<string> {
   return promise;
 }
 
-const PIECE_TYPES = ['wP', 'wN', 'wB', 'wR', 'wQ', 'wK', 'bP', 'bN', 'bB', 'bR', 'bQ', 'bK'];
-
-export function preloadPieceSet(path: string): void {
-  for (const p of PIECE_TYPES) {
-    loadAndCache(`${path}/${p.toLowerCase()}.svg`);
+export function preloadPieceSet(source: string | PieceSet): void {
+  for (const url of Object.values(resolvePieceSetUrls(source) ?? {})) {
+    loadAndCache(url);
   }
 }
 

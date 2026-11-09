@@ -3,7 +3,6 @@ import type { RasterOptions } from '../types';
 
 export type { RasterOptions };
 
-const PIECE_CODES: PieceCode[] = ['wp', 'wn', 'wb', 'wr', 'wq', 'wk', 'bp', 'bn', 'bb', 'br', 'bq', 'bk'];
 const pieceSetCache = new Map<string, Promise<Partial<Record<PieceCode, string>>>>();
 
 /**
@@ -11,13 +10,17 @@ const pieceSetCache = new Map<string, Promise<Partial<Record<PieceCode, string>>
  * can't load external images, and inlining keeps the export self-contained.
  * Pieces that fail to load fall back to the built-in set.
  */
-export function loadPieceSetSvgs(path: string): Promise<Partial<Record<PieceCode, string>>> {
-  let pending = pieceSetCache.get(path);
+export function loadPieceSetSvgs(
+  pieceUrls: Partial<Record<PieceCode, string>>,
+): Promise<Partial<Record<PieceCode, string>>> {
+  const urlEntries = Object.entries(pieceUrls) as [PieceCode, string][];
+  const cacheKey = urlEntries.map(([, url]) => url).join('\n');
+  let pending = pieceSetCache.get(cacheKey);
   if (!pending) {
     pending = Promise.all(
-      PIECE_CODES.map(async (code) => {
+      urlEntries.map(async ([code, url]) => {
         try {
-          const res = await fetch(`${path}/${code}.svg`);
+          const res = await fetch(url);
           if (!res.ok) return null;
           const text = await res.text();
           return text.includes('<svg') ? ([code, text] as const) : null;
@@ -30,7 +33,7 @@ export function loadPieceSetSvgs(path: string): Promise<Partial<Record<PieceCode
       for (const e of entries) if (e) out[e[0]] = e[1];
       return out;
     });
-    pieceSetCache.set(path, pending);
+    pieceSetCache.set(cacheKey, pending);
   }
   return pending;
 }

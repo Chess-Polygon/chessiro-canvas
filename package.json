@@ -30,7 +30,7 @@
     "docs:dev": "npm --prefix demo run dev",
     "docs:build": "npm --prefix demo run build",
     "docs:preview": "npm --prefix demo run preview",
-    "test": "npm run build && node scripts/test-premove.mjs && node scripts/test-cinematics.mjs && node scripts/test-motion.mjs && node scripts/test-interaction.mjs",
+    "test": "npm run build && node scripts/test-premove.mjs && node scripts/test-cinematics.mjs && node scripts/test-motion.mjs && node scripts/test-interaction.mjs && node scripts/test-piece-assets.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "clean": "rm -rf dist",
@@ -41,7 +41,8 @@
     "benchmark:visuals": "npm run build && node scripts/bench-visuals.mjs",
     "benchmark:browser:install": "playwright install chromium",
     "preview:generate": "node scripts/generate-readme-preview.mjs",
-    "test:frames": "npm run build && node scripts/test-cinematic-frames.mjs"
+    "test:frames": "npm run build && node scripts/test-cinematic-frames.mjs",
+    "test:browser": "npm run build && node scripts/test-interaction-browser.mjs"
   },
   "peerDependencies": {
     "react": ">=18.0.0",

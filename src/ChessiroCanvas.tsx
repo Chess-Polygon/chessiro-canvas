@@ -17,7 +17,8 @@ import { useKeyboard } from './interaction/useKeyboard';
 import { Squares } from './render/Squares';
 import { PiecesLayer, type PiecesLayerRef, type DropHint } from './render/Pieces';
 import { resolveMoveAnimation } from './core/motion';
-import { renderBoardSvg, type BoardSvgOptions, type PieceCode } from './core/boardSvg';
+import { renderBoardSvg, type BoardSvgOptions } from './core/boardSvg';
+import { resolvePieceSetUrls } from './defaultPieces';
 import { loadPieceSetSvgs, svgToImageBlob, type RasterOptions } from './utils/exportImage';
 import { prefersReducedMotion } from './cinematics/motion';
 import { GhostPiecesLayer } from './render/GhostPieces';
@@ -314,12 +315,7 @@ export const ChessiroCanvas = forwardRef<ChessiroCanvasRef, ChessiroCanvasProps>
       snapshotRef.current = () => {
         const rect = getFreshBounds();
         const squarePx = rect && rect.width > 0 ? rect.width / 8 : 64;
-        const pieceUrls: Partial<Record<PieceCode, string>> | undefined = pieceSet?.path
-          ? Object.fromEntries(
-            (['wp', 'wn', 'wb', 'wr', 'wq', 'wk', 'bp', 'bn', 'bb', 'br', 'bq', 'bk'] as PieceCode[])
-              .map((c) => [c, `${pieceSet.path}/${c}.svg`]),
-          )
-          : undefined;
+        const pieceUrls = resolvePieceSetUrls(pieceSet);
         return {
           position,
           orientation,
@@ -448,10 +444,7 @@ export const ChessiroCanvas = forwardRef<ChessiroCanvasRef, ChessiroCanvasProps>
       async toImage(options?: BoardSvgOptions & RasterOptions) {
         const base = snapshotRef.current();
         let pieceSvgs = options?.pieceSvgs;
-        if (!pieceSvgs && base.pieceUrls) {
-          const path = pieceSet?.path;
-          if (path) pieceSvgs = await loadPieceSetSvgs(path);
-        }
+        if (!pieceSvgs && base.pieceUrls) pieceSvgs = await loadPieceSetSvgs(base.pieceUrls);
         const svg = renderBoardSvg({ ...base, ...options, pieceSvgs, pieceUrls: undefined });
         return svgToImageBlob(svg, options);
       },
@@ -463,7 +456,7 @@ export const ChessiroCanvas = forwardRef<ChessiroCanvasRef, ChessiroCanvasProps>
         drift: (options?: CameraDriftOptions) => getCameraController().drift(options),
         reset: () => cameraControllerRef.current?.reset(),
       },
-    }), [orientation, getFreshBounds, getFreshDomRect, getCameraController, pieceSet?.path]);
+    }), [orientation, getFreshBounds, getFreshDomRect, getCameraController]);
 
     const hasValidSize = bounds && bounds.width > 0;
     const boardWidth = bounds?.width ?? 0;
@@ -627,6 +620,7 @@ export const ChessiroCanvas = forwardRef<ChessiroCanvasRef, ChessiroCanvasProps>
                     <PromotionDialog
                       promotion={interaction.pendingPromotion}
                       pieceSet={pieceSet}
+                      customPieces={customPieces}
                       flipPieces={flipPieces}
                       visuals={promotionVisuals}
                       orientation={orientation}
