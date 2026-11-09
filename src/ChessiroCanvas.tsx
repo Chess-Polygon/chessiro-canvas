@@ -620,6 +620,7 @@ export const ChessiroCanvas = forwardRef<ChessiroCanvasRef, ChessiroCanvasProps>
                     <PromotionDialog
                       promotion={interaction.pendingPromotion}
                       pieceSet={pieceSet}
+                      customPieces={customPieces}
                       flipPieces={flipPieces}
                       visuals={promotionVisuals}
                       orientation={orientation}

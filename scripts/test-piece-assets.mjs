@@ -103,6 +103,7 @@ function expectThat(condition, label) {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const settle = () => sleep(15);
 const WAIT_LIMIT_MS = 5000;
+const LEGAL_DOT = 'rgb(2, 2, 2)';
 
 async function waitUntil(boardReached) {
   const deadline = Date.now() + WAIT_LIMIT_MS;
@@ -110,6 +111,7 @@ async function waitUntil(boardReached) {
 }
 
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+const PAWN_ABOUT_TO_PROMOTE = '4k3/P7/8/8/8/8/8/4K3';
 const ALL_PIECE_CODES = ['wp', 'wn', 'wb', 'wr', 'wq', 'wk', 'bp', 'bn', 'bb', 'br', 'bq', 'bk'];
 
 const pieceSetAt = (path, fields = {}) => ({ id: path, name: path, path, ...fields });
@@ -129,12 +131,12 @@ function mouseEvent(type, [clientX, clientY]) {
 }
 
 // `makePieceSet` runs on every parent render, as an inline prop does in an app.
-async function openBoard({ makePieceSet }) {
+async function openBoard({ position = START, makePieceSet, customPieces, moves = { e2: ['e4'] } }) {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
   const boardRef = React.createRef();
-  const dests = new Map([['e2', ['e4']]]);
+  const dests = new Map(Object.entries(moves));
   let rerenderParent;
 
   function ParentApp() {
@@ -142,11 +144,13 @@ async function openBoard({ makePieceSet }) {
     rerenderParent = () => setTick((tick) => tick + 1);
     return React.createElement(ChessiroCanvas, {
       ref: boardRef,
-      position: START,
+      position,
       turnColor: 'w',
       movableColor: 'w',
       dests,
       pieceSet: makePieceSet?.(),
+      pieces: customPieces,
+      squareVisuals: { legalDot: LEGAL_DOT },
       onMove: () => true,
     });
   }
@@ -171,10 +175,20 @@ async function openBoard({ makePieceSet }) {
       document.dispatchEvent(mouseEvent('mouseup', centerOf(square)));
       await settle();
     },
+    async openPromotionDialog() {
+      await board.press('a7');
+      await board.release('a7');
+      await waitUntil(() => (cell('a8').getAttribute('style') ?? '').includes(LEGAL_DOT));
+      await board.press('a8');
+      await board.release('a8');
+      await waitUntil(() => container.querySelector('[role="dialog"]') !== null);
+    },
     async rerender() {
       rerenderParent();
       await settle();
     },
+    promotionOption: (label) => container.querySelector(`[aria-label="Promote to ${label}"]`),
+    promotionImageUrls: () => sourcesOf([...container.querySelectorAll('[role="dialog"] img')]),
     boardImageUrls: () => sourcesOf([...container.querySelectorAll('img')]),
     dragGhostImageUrls: () => sourcesOf(
       [...document.querySelectorAll('img')].filter((image) => !container.contains(image)),
@@ -196,6 +210,47 @@ async function openBoard({ makePieceSet }) {
 
 function forgetRequests() {
   requestedUrls.length = 0;
+}
+
+console.log('\n-- the promotion dialog shows the artwork of the app --');
+{
+  const moves = { a7: ['a8'] };
+  const customPieces = Object.fromEntries(['wQ', 'wN', 'wR', 'wB'].map((key) => [
+    key,
+    () => React.createElement('span', { 'data-custom-piece': key }),
+  ]));
+  const board = await openBoard({ position: PAWN_ABOUT_TO_PROMOTE, moves, customPieces });
+  await board.openPromotionDialog();
+  const expected = { Queen: 'wQ', Knight: 'wN', Rook: 'wR', Bishop: 'wB' };
+  for (const [label, key] of Object.entries(expected)) {
+    expectThat(board.promotionOption(label)?.querySelector(`[data-custom-piece="${key}"]`) != null,
+      `An app supplies its own piece components: the ${label} option shows the component of the app`);
+  }
+  await board.close();
+}
+{
+  const moves = { a7: ['a8'] };
+  const board = await openBoard({
+    position: PAWN_ABOUT_TO_PROMOTE,
+    moves,
+    makePieceSet: () => pieceSetAt('/dialog-png', { extension: 'png' }),
+  });
+  await board.openPromotionDialog();
+  expectThat(sameUrls(board.promotionImageUrls(), ['q', 'n', 'r', 'b'].map((role) => `/dialog-png/w${role}.png`)),
+    'An app uses a PNG piece set: the promotion dialog shows the four PNG files');
+  await board.close();
+}
+{
+  const moves = { a7: ['a8'] };
+  const board = await openBoard({
+    position: PAWN_ABOUT_TO_PROMOTE,
+    moves,
+    makePieceSet: () => pieceSetAt('/dialog-default'),
+  });
+  await board.openPromotionDialog();
+  expectThat(sameUrls(board.promotionImageUrls(), ['q', 'n', 'r', 'b'].map((role) => `/dialog-default/w${role}.svg`)),
+    'An app names no file extension: the promotion dialog shows the four SVG files');
+  await board.close();
 }
 
 console.log('\n-- a dragged piece shows the artwork of the app --');

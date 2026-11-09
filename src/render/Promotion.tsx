@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import type { Orientation, PromotionContext, PromotionPiece, PieceSet, PromotionVisuals } from '../types';
-import { CachedPieceImg } from '../hooks/usePieceCache';
-import { resolvePieceImageSrc } from '../defaultPieces';
+import type { Orientation, PromotionContext, PromotionPiece, PieceRenderer, PieceSet, PromotionVisuals } from '../types';
+import { PieceGlyph } from './PieceGlyph';
 
 const PROMO_PIECES: readonly PromotionPiece[] = ['q', 'n', 'r', 'b'];
 const PROMO_LABELS: Record<PromotionPiece, string> = {
@@ -14,6 +13,7 @@ const PROMO_LABELS: Record<PromotionPiece, string> = {
 interface PromotionDialogProps {
   promotion: PromotionContext;
   pieceSet?: PieceSet;
+  customPieces?: PieceRenderer;
   flipPieces?: boolean;
   visuals?: Partial<PromotionVisuals>;
   orientation: Orientation;
@@ -26,6 +26,7 @@ interface PromotionDialogProps {
 export const PromotionDialog = memo(function PromotionDialog({
   promotion,
   pieceSet,
+  customPieces,
   flipPieces = false,
   visuals = {},
   orientation,
@@ -90,15 +91,6 @@ export const PromotionDialog = memo(function PromotionDialog({
   const stackTop = extendsDown
     ? cellY - panelPadding
     : cellY + sqH + panelPadding - stackHeight;
-
-  const renderPiece = useCallback(
-    (piece: PromotionPiece) => {
-      const key = `${promotion.color}${piece.toUpperCase()}`;
-      const src = resolvePieceImageSrc(key, pieceSet?.path);
-      return <CachedPieceImg src={src} alt={key} />;
-    },
-    [promotion.color, pieceSet?.path],
-  );
 
   const visualPieces = extendsDown ? PROMO_PIECES : [...PROMO_PIECES].reverse();
 
@@ -202,7 +194,11 @@ export const PromotionDialog = memo(function PromotionDialog({
                   transform: flipPieces ? 'rotate(180deg)' : undefined,
                 }}
               >
-                {renderPiece(piece)}
+                <PieceGlyph
+                  pieceKey={`${promotion.color}${piece.toUpperCase()}`}
+                  pieceSet={pieceSet}
+                  customPieces={customPieces}
+                />
               </span>
             </button>
           );
