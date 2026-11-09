@@ -394,7 +394,137 @@ for (const [moves, description] of [
   await board.close();
 }
 
+console.log('\n-- selecting a piece on press --');
+{
+  const board = await openBoard(playerToMove());
+  await board.press('e2');
+  expectThat(board.isSelected('e2') && board.hasLegalDot('e3') && board.hasLegalDot('e4'),
+    'A player holds the mouse down on a pawn: its selection and legal dots show before the release');
+  expectThat(board.played.clicks.length === 0, 'A player holds the mouse down on a pawn: the app hears no click yet');
+  await board.release('e2');
+  expectThat(board.isSelected('e2') && board.hasLegalDot('e4'), 'A player releases the pawn in place: it stays selected');
+  expectThat(board.played.clicks.join() === 'e2', 'A player releases the pawn in place: the app hears one click');
+  await board.click('e2');
+  expectThat(board.selectedSquares().length === 0, 'A player clicks the selected pawn again: it deselects');
+  expectThat(board.played.clicks.length === 1, 'A player clicks the selected pawn again: the app hears no new click');
+  await board.close();
+}
+{
+  const arrow = { startSquare: 'a3', endSquare: 'a5', color: '#15781B' };
+  const board = await openBoard(playerToMove({ arrows: [arrow] }));
+  await board.press('e2');
+  await board.moveTo('e4');
+  expectThat(board.isSelected('e2') && board.hasLegalDot('e3'), 'A player drags a pawn past the threshold: the selection stays during the drag');
+  await board.release('e4');
+  expectThat(board.played.moves.join() === 'e2e4', 'A player drops the pawn on a legal square: the move is played');
+  expectThat(board.played.clicks.length === 0, 'A player drags a pawn: the app hears no click');
+  expectThat(board.played.arrowChanges === 0 && board.arrowsOnBoard() === 1, 'A player drags a pawn: the arrows on the board stay');
+  await board.close();
+}
+{
+  const arrow = { startSquare: 'a3', endSquare: 'a5', color: '#15781B' };
+  const board = await openBoard(playerToMove({ arrows: [arrow] }));
+  await board.press('e2');
+  expectThat(board.played.arrowChanges === 0 && board.arrowsOnBoard() === 1, 'A player holds the mouse on a pawn: the arrows on the board stay during the hold');
+  await board.release('e2');
+  expectThat(board.played.arrowChanges === 1 && board.arrowsOnBoard() === 0, 'A player clicks a pawn: the arrows on the board clear on release');
+  await board.close();
+}
+{
+  const board = await openBoard(playerToMove());
+  await board.click('e2');
+  await board.press('a1');
+  expectThat(board.selectedSquares().length === 0 && !board.hasLegalDot('e4'), 'A player presses a blocked rook while a pawn is selected: the pawn loses its selection and dots at once');
+  await board.release('a1');
+  expectThat(board.selectedSquares().length === 0, 'A player releases the blocked rook: nothing is selected');
+  await board.close();
+}
+
+console.log('\n-- presses that wait for the release --');
+{
+  const board = await openBoard(opponentToMove());
+  await board.click('d8');
+  expectThat(board.hasPremoveDot('d7'), 'A player selects the queen for a premove: a friendly pawn in its path is marked');
+  await board.press('d7');
+  expectThat(board.played.sets.length === 0, 'A player presses a friendly piece that the queen can reach: no premove queues on press');
+  await board.release('d7');
+  expectThat(board.played.sets.join() === 'd8d7', 'A player releases on that friendly piece: the premove queues');
+  await board.close();
+}
+{
+  const board = await openBoard(opponentToMove());
+  await board.click('d8');
+  await board.press('d7');
+  await board.moveTo('d5');
+  expectThat(board.isSelected('d7') && !board.isSelected('d8') && board.hasPremoveDot('d6'),
+    'A player drags a friendly piece that the queen can reach: the selection moves to the dragged piece');
+  expectThat(board.played.sets.length === 0, 'A player drags a friendly piece that the queen can reach: no premove queues for the queen');
+  await board.close();
+}
+{
+  const board = await openBoard({
+    position: 'r3k2r/8/8/8/8/8/8/R3K2R',
+    turnColor: 'w',
+    movableColor: 'w',
+    moves: { e1: ['d1', 'f1', 'h1'], h1: ['h2', 'g1'] },
+  });
+  await board.click('e1');
+  await board.press('h1');
+  expectThat(board.played.moves.length === 0, 'A player castles by pressing the king onto the rook: nothing moves on press');
+  await board.release('h1');
+  expectThat(board.played.moves.join() === 'e1h1', 'A player castles by releasing on the rook: the castling move is played');
+  await board.close();
+}
+{
+  const board = await openBoard(playerToMove());
+  await board.drawArrow('a3', 'a5');
+  await board.press('e2');
+  expectThat(board.selectedSquares().length === 0, 'A player presses a pawn right after drawing an arrow: the press does not select it');
+  await sleep(FLAG_AFTER_ARROW_MS + 50);
+  await board.release('e2');
+  expectThat(board.isSelected('e2') && board.hasLegalDot('e4'), 'A player holds that press until the arrow guard ends and releases: the pawn is selected');
+  await board.close();
+}
+{
+  const board = await openBoard(playerToMove());
+  await board.drawArrow('a3', 'a5');
+  await board.dragAndDrop('e2', 'e4');
+  expectThat(board.played.moves.join() === 'e2e4', 'A player drags a pawn right after drawing an arrow: the move is played');
+  await board.close();
+}
+
 console.log('\n-- a queued premove and a new press --');
+{
+  const board = await openBoard(opponentToMove());
+  await queueKnightPremove(board);
+  await board.press('g8');
+  expectThat(board.played.unset === 1 && !board.showsQueuedPremove('c6'),
+    'A player presses another knight with a premove queued: the premove is cancelled once, at the press');
+  expectThat(board.isSelected('g8') && board.hasPremoveDot('f6'), 'A player presses another knight with a premove queued: the new knight shows its dots during the hold');
+  await board.update({
+    position: AFTER_WHITE_E4,
+    turnColor: 'b',
+    moves: { ...BLACK_MOVES },
+  });
+  expectThat(board.played.moves.length === 0, 'The opponent moves while the player holds another knight: the replaced premove does not play');
+  await board.close();
+}
+{
+  const board = await openBoard(opponentToMove());
+  await queueKnightPremove(board);
+  await board.dragAndDrop('g8', 'f6');
+  expectThat(board.played.events.join() === 'set,unset,set' && board.played.sets.at(-1) === 'g8f6',
+    'A player drags another knight to a new premove square: the old premove is cancelled, then the new one queues');
+  await board.close();
+}
+{
+  const board = await openBoard(opponentToMove());
+  await queueKnightPremove(board);
+  await board.dragAndDrop('g8', 'a4');
+  expectThat(board.played.unset === 1 && board.played.sets.length === 1 && !board.showsQueuedPremove('c6'),
+    'A player drags another knight to an unreachable square: no premove stays queued');
+  await board.close();
+}
 {
   const board = await openBoard(opponentToMove());
   await board.click('g8');
@@ -402,6 +532,38 @@ console.log('\n-- a queued premove and a new press --');
   await board.click('g8');
   expectThat(board.played.unset === 1 && board.selectedSquares().length === 0,
     'A player clicks the selected knight with a premove queued: it deselects and the premove is cancelled exactly once');
+  await board.close();
+}
+
+console.log('\n-- touch and small drags --');
+{
+  const board = await openBoard(playerToMove());
+  await board.touchStart('e2');
+  await sleep(COMPATIBILITY_MOUSE_WINDOW_MS + 100);
+  expectThat(board.isSelected('e2'), 'A player holds a finger on a pawn: it is selected during the hold');
+  await board.touchEnd('e2');
+  await board.press('e2');
+  await board.release('e2');
+  expectThat(board.isSelected('e2') && board.hasLegalDot('e4'),
+    'A player lifts the finger after a long hold and the browser sends late mouse events: the pawn stays selected');
+  await board.close();
+}
+{
+  const board = await openBoard(playerToMove());
+  await board.press('e2');
+  await board.moveTo('e4');
+  await board.moveTo('e2');
+  await board.release('e2');
+  expectThat(board.selectedSquares().length === 0, 'A player drags a pawn away and back to its square: the selection clears');
+  await board.close();
+}
+{
+  const board = await openBoard(playerToMove());
+  const insideTheSquare = [8, 0];
+  await board.press('e2');
+  await board.moveTo('e2', insideTheSquare);
+  await board.release('e2', insideTheSquare);
+  expectThat(board.isSelected('e2') && board.hasLegalDot('e4'), 'A player wiggles a pawn inside its own square: the selection stays');
   await board.close();
 }
 

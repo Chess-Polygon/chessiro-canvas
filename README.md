@@ -471,6 +471,17 @@ destinations are geometric, not legal — a queued move must still be validated 
 it fires. Use the exported `premoveDests(square, pieces, color)` if you want to
 compute those destinations outside the board.
 
+A press on a movable piece selects it at once and shows its destinations, before
+the release. With `allowDragging`, two presses wait for the release: a press on
+the selected piece, and a press on a destination of the selected piece. The
+release then deselects the piece, plays the move or queues the premove.
+
+A press that selects a piece also cancels the queued premove and fires `unset`.
+The premove stays cancelled if the drag fails. A drag that replaces a queued
+premove fires `unset` first and `set` second. A press does not cancel the premove
+when it lands on a destination of the selected piece or within 150 ms after an
+arrow. A drag from that press fires only `set`.
+
 ### Promotion
 
 By default, reaching the last rank opens a chessground-style promotion chooser —
@@ -1042,7 +1053,7 @@ All props are optional. The component forwards a `ref` of type
 
 | Prop | Type | Description |
 | --- | --- | --- |
-| `onSquareClick` | `(square: string) => void` | Any square click. |
+| `onSquareClick` | `(square: string) => void` | A square click. For a movable piece with `allowDragging`, it fires once on release. In other cases it fires on press. A drag does not fire it. A click that deselects a piece, plays a move or queues a premove does not fire it. |
 | `onClearOverlays` | `() => void` | The board cleared the current ply's overlays. |
 | `onAnimationEvent` | `(event: AnimationEvent) => void` | Check, checkmate, capture, promotion, or castle detected during animation. |
 | `onPrevious` `onNext` `onFirst` `onLast` `onFlipBoard` `onShowThreat` `onDeselect` | `() => void` | [Keyboard navigation](#keyboard-navigation) hooks. |
