@@ -148,6 +148,7 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
   const dragKeyChangedRef = useRef(false);
   const isTouchRef = useRef(false);
   const lastTouchTsRef = useRef(0);
+  const lastPositionRef = useRef(position);
 
   // Document listeners are attached only while a gesture (drag / arrow draw)
   // is active, so idle boards do zero work on global pointer movement. The
@@ -203,6 +204,8 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
   // the legal-move dots from the new `dests`. Without this, tapping a piece
   // while the opponent is thinking would "flash off" the moment they moved.
   useEffect(() => {
+    const positionChanged = lastPositionRef.current !== position;
+    lastPositionRef.current = position;
     const sel = selectedRef.current;
     if (sel !== null) {
       const piece = piecesRef.current.get(sel as Square);
@@ -215,6 +218,8 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
         if (pendingPromotionRef.current !== null) setPendingPromotion(null);
         return;
       }
+      // Premove dots come from the pieces, so a new `dests` identity cannot make them stale.
+      if (piece && !positionChanged && premoveRef.current.length > 0 && canPremoveColor(piece.color)) return;
     }
     if (
       selectedRef.current === null &&
@@ -261,9 +266,6 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
     setPremoveCurrent(prev => (
       samePremove(prev, controlledCurrent) ? prev : controlledCurrent
     ));
-    if (controlledCurrent === null) {
-      setPremoveSquares(prev => (prev.length === 0 ? prev : EMPTY_SQUARES));
-    }
   }, [premovable]);
 
   useEffect(() => {
@@ -354,16 +356,23 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
     setPremoveSquares([]);
   }, [premovable]);
 
-  const clearSelection = useCallback(() => {
+  const resetSelection = useCallback(() => {
     setSelectedSquare(null);
     setLegalSquares([]);
     setPremoveSquares([]);
     setPendingPromotion(null);
-    if (premoveCurrent) {
-      setPremoveCurrent(null);
-      premovable?.events?.unset?.();
-    }
+  }, []);
+
+  const cancelQueuedPremove = useCallback(() => {
+    if (!premoveCurrent) return;
+    setPremoveCurrent(null);
+    premovable?.events?.unset?.();
   }, [premoveCurrent, premovable]);
+
+  const clearSelection = useCallback(() => {
+    resetSelection();
+    cancelQueuedPremove();
+  }, [resetSelection, cancelQueuedPremove]);
 
   // ── Clear overlays for current ply ──
 
@@ -435,10 +444,7 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
     clearOverlaysForPly();
 
     // Cancel existing premove on any click
-    if (premoveCurrent) {
-      setPremoveCurrent(null);
-      premovable?.events?.unset?.();
-    }
+    cancelQueuedPremove();
 
     // If we have a selection and the target is a legal move
     if (sel && legal.includes(sq)) {
@@ -454,7 +460,7 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
 
     // Clicking the same square deselects
     if (sel === sq) {
-      clearSelection();
+      resetSelection();
       return;
     }
 
@@ -485,11 +491,11 @@ export function useInteraction(opts: UseInteractionOptions): InteractionState {
       }
     }
 
-    clearSelection();
+    resetSelection();
     onSquareClick?.(sq);
   }, [interactive, attemptMove, attemptPremove, getDestsForSquare, dests,
-    canMoveColor, canPremoveColor, premoveCurrent, premovable,
-    onSquareClick, clearOverlaysForPly, clearSelection]);
+    canMoveColor, canPremoveColor, cancelQueuedPremove, resetSelection,
+    onSquareClick, clearOverlaysForPly]);
 
   // ── Toggle arrow/mark helpers ──
 
