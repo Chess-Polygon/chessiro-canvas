@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { MoveAnimationOptions, MoveAnimationPreset } from './core/motion';
-import type { BoardSvgOptions } from './core/boardSvg';
+import type { BoardSvgOptions, PieceCode } from './core/boardSvg';
 
 // ── Square & Coordinate Types ──────────────────────────────────────
 
@@ -268,7 +268,16 @@ export interface OverlayVisuals {
 export interface PieceSet {
   id: string;
   name: string;
-  path: string; // URL path prefix, pieces at `${path}/wp.svg`, etc.
+  /** URL folder of the piece files. Each file name is the lowercase piece code, for example `wq`. */
+  path: string;
+  /** File extension of the piece files, for example `'png'`. Default: SVG. */
+  extension?: string;
+  /**
+   * Gives the full URL of a piece, for hashed or versioned files. Takes
+   * precedence over `path` and `extension`. Keep it pure: the same code must
+   * always give the same URL, because the board caches files by URL.
+   */
+  resolveSrc?: (code: PieceCode) => string;
 }
 
 // ── Highlights ─────────────────────────────────────────────────────

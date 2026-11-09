@@ -1,8 +1,7 @@
 import { memo, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Piece, PieceSet, PieceRenderer } from '../types';
-import { CachedPieceImg } from '../hooks/usePieceCache';
-import { resolvePieceImageSrc } from '../defaultPieces';
+import { PieceGlyph } from './PieceGlyph';
 
 interface DragGhostProps {
   piece: Piece;
@@ -30,16 +29,7 @@ export const DragGhost = memo(forwardRef<HTMLDivElement, DragGhostProps>(functio
   scale = 1,
   liftSquares = 0,
 }, ref) {
-  const piecePath = pieceSet?.path;
   const key = `${piece.color}${piece.role.toUpperCase()}`;
-
-  let content: React.ReactNode;
-  if (customPieces?.[key]) {
-    content = customPieces[key]();
-  } else {
-    const src = resolvePieceImageSrc(key, piecePath);
-    content = <CachedPieceImg src={src} alt={key} />;
-  }
 
   // Outer div: positioning only. useInteraction rewrites this `transform` on pointermove,
   // so keep it a plain translate to avoid interference from scale/lift.
@@ -77,7 +67,7 @@ export const DragGhost = memo(forwardRef<HTMLDivElement, DragGhostProps>(functio
           transition: 'transform 80ms ease-out',
         }}
       >
-        {content}
+        <PieceGlyph pieceKey={key} pieceSet={pieceSet} customPieces={customPieces} />
       </div>
     </div>
   );

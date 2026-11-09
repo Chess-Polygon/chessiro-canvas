@@ -222,7 +222,6 @@ export const PiecesLayer = memo(forwardRef<PiecesLayerRef, PiecesLayerProps>(fun
   selectedPieceScale,
 }, ref) {
   const asWhite = orientation === 'white';
-  const piecePath = pieceSet?.path;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const prevPiecesRef = useRef(pieces);
@@ -284,8 +283,8 @@ export const PiecesLayer = memo(forwardRef<PiecesLayerRef, PiecesLayerProps>(fun
   }), [track]);
 
   useEffect(() => {
-    if (piecePath) preloadPieceSet(piecePath);
-  }, [piecePath]);
+    if (pieceSet) preloadPieceSet(pieceSet);
+  }, [pieceSet]);
 
   // Plan and launch motion for whatever changed in this commit. Runs before
   // paint, so pieces never flash at their destination first.

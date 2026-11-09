@@ -254,8 +254,10 @@ Default SVG piece artwork is embedded in the package and rendered automatically:
 <ChessiroCanvas position={fen} />
 ```
 
-To use your own hosted piece set, point `pieceSet.path` at a directory containing
-`wp.svg`, `wn.svg`, … `bk.svg`:
+To use your own hosted piece set, set `pieceSet.path` to the URL folder of the
+files. The folder holds one file for each piece. Each file name is the lowercase
+piece code: `wp`, `wn`, … `bk`. The default file type is SVG, so this set loads
+`/pieces/alpha/wp.svg`:
 
 ```tsx
 <ChessiroCanvas
@@ -264,8 +266,44 @@ To use your own hosted piece set, point `pieceSet.path` at a directory containin
 />
 ```
 
-Call `preloadPieceSet('/pieces/alpha')` ahead of time to warm the image cache and
-avoid a flash on first render.
+For a set in another file type, set `extension`. A leading dot is optional.
+
+```tsx
+<ChessiroCanvas
+  position={fen}
+  pieceSet={{ id: 'alpha-png', name: 'Alpha PNG', path: '/pieces/alpha', extension: 'png' }}
+/>
+```
+
+For hashed or versioned URLs, set `resolveSrc`. It receives the lowercase piece
+code and returns the full URL. It takes precedence over `path` and `extension`.
+The `path` field is required, so set `path: ''` for a set that uses only `resolveSrc`.
+
+```tsx
+<ChessiroCanvas
+  position={fen}
+  pieceSet={{
+    id: 'alpha-v2',
+    name: 'Alpha',
+    path: '',
+    resolveSrc: (code) => `https://cdn.example.com/alpha/${code}.webp?v=2`,
+  }}
+/>
+```
+
+Keep `resolveSrc` pure. The same code must always give the same URL, because the
+board caches files by URL. A new function on each render is safe. A new URL on each
+call makes the board load the files again. A set with an empty `path` and no
+`resolveSrc` uses the bundled artwork.
+
+Call `preloadPieceSet` ahead of time to warm the image cache and avoid a flash on
+first render. It takes a path or a full `PieceSet`. A path always means SVG files,
+so pass the full `PieceSet` when the set uses `extension` or `resolveSrc`.
+
+```ts
+preloadPieceSet('/pieces/alpha');
+preloadPieceSet({ id: 'alpha-png', name: 'Alpha PNG', path: '/pieces/alpha', extension: 'png' });
+```
 
 For full control, pass React nodes per piece key (`wP`, `bQ`, …):
 
@@ -666,9 +704,10 @@ const jpg = await board.current!.toImage({ type: 'image/jpeg', quality: 0.9, arr
 
 Any `BoardSvgOptions` field overrides the live value (`size`, `arrows`,
 `orientation`, `showCoordinates`, …). `toImage` also takes `pixelRatio` (default
-`2`), `type` and `quality`. A hosted `pieceSet` is fetched and inlined so the
-image is self-contained; custom React `pieces` renderers can't be serialised, so
-the built-in artwork is used for those.
+`2`), `type` and `quality`. A hosted SVG `pieceSet` is fetched and inlined so the
+image is self-contained. `toImage` inlines SVG files only, so a raster set such as
+`extension: 'png'` uses the built-in artwork in the image. Custom React `pieces`
+renderers can't be serialised, so the built-in artwork is used for those too.
 
 On the server — Open Graph cards, PDF reports, email thumbnails — use the same
 renderer without React or a DOM:
@@ -1017,7 +1056,7 @@ All props are optional. The component forwards a `ref` of type
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `theme` | `BoardTheme` | built-in wood theme | Square, margin, highlight, and selection colors. |
-| `pieceSet` | `PieceSet` | bundled default pieces | Hosted piece set path (`${path}/wp.svg`, …). |
+| `pieceSet` | `PieceSet` | bundled default pieces | Hosted piece set: `path`, with optional `extension` or `resolveSrc`. See [Piece sets and custom pieces](#piece-sets-and-custom-pieces). |
 | `pieces` | `Record<string, () => ReactNode>` | — | Custom renderer per piece key (`wP`, `bQ`, …). |
 | `flipPieces` | `boolean` | `false` | Rotate piece artwork 180° for pass-and-play. |
 | `showMargin` | `boolean` | `true` | Render the notation frame around the board. |
@@ -1126,8 +1165,8 @@ const board = useRef<ChessiroCanvasRef>(null);
 | `readFen` | `(fen: string) => Map<Square, Piece>` | Parse the placement part of a FEN into a piece map. |
 | `writeFen` | `(pieces: Map<Square, Piece>) => string` | Serialize a piece map back to placement FEN. |
 | `premoveDests` | `(square, pieces, color) => Square[]` | Geometrically reachable premove targets (ignores blockers by design). |
-| `preloadPieceSet` | `(path: string) => void` | Warm the image cache for a hosted piece set. |
-| `resolvePieceImageSrc` | `(pieceKey: string, piecePath?: string) => string` | Resolve `'wN'` to an image src; useful for external piece trays. |
+| `preloadPieceSet` | `(source: string \| PieceSet) => void` | Warm the image cache for a hosted piece set. A string is a path to SVG files. |
+| `resolvePieceImageSrc` | `(pieceKey: string, source?: string \| PieceSet) => string` | Resolve `'wN'` to an image src; useful for external piece trays. A string is a path to SVG files. |
 | `DEFAULT_ARROW_BRUSHES` | `ArrowBrushes` | The default green/red/blue/yellow arrow colors. |
 | `renderBoardSvg` | `(options?: BoardSvgOptions) => string` | Static SVG of a position. Also in `chessiro-canvas/core`. |
 | `svgToImageBlob` | `(svg, options?) => Promise<Blob>` | Rasterise an SVG in the browser. |
