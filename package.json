@@ -30,7 +30,7 @@
     "docs:dev": "npm --prefix demo run dev",
     "docs:build": "npm --prefix demo run build",
     "docs:preview": "npm --prefix demo run preview",
-    "test": "npm run build && node scripts/test-premove.mjs && node scripts/test-cinematics.mjs && node scripts/test-motion.mjs",
+    "test": "npm run build && node scripts/test-premove.mjs && node scripts/test-cinematics.mjs && node scripts/test-motion.mjs && node scripts/test-interaction.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "clean": "rm -rf dist",
